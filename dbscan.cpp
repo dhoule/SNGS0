@@ -362,26 +362,40 @@ namespace NWUClustering {
     ne.reserve(num_points);
     ne2.reserve(num_points);
     vector<int>* ind = dbs.m_kdtree->getIndex(); // get index of data set
-    double start = omp_get_wtime() ;    
+
+    // TODO initialize parent pointers: self-pointing
+
+    // TODO get seed points
+
+    // TODO this will be modified after seed points are obtained
+    double start = omp_get_wtime() ;  
     for(i = 0; i < num_points; i++) { // start to go over data set
       pid = (*ind)[i]; // get the current data pts ID
-      if (!dbs.m_visited[pid]) { // only continue if pt hasn't been visited
-        dbs.m_visited[pid] = true; // mark curren pt as visited
+      // not already assigned to a cluster
+      if (!dbs.m_pid_to_cid[pid]) { 
+        // TODO mark as clustered after seed points are obtained
+
+        dbs.m_visited[pid] = true; // mark curren pt as visited // TODO maybe get rid of this later
         ne.clear();
         dbs.m_kdtree->r_nearest_around_point(pid, 0, dbs.m_epsSquare, ne); // get neighborhood of current pt
-        if(ne.size() < dbs.m_minPts)
-          dbs.m_noise[pid] = true; // mark as noise point if neighborhood is too small
-        else {
+
+        if(ne.size() >= dbs.m_minPts) {
           // start a new cluster as the neighborhood meets the requirements
           c.clear(); // holds all of the points for the new cluster
           c.push_back(pid); // the current point is always added here as it is a centroid
           dbs.m_pid_to_cid[pid] = cid; // assign the current pt the current "cluster ID"
           // traverse the neighbors
           for (j = 0; j < ne.size(); j++) {
-            npid= ne[j].idx; // get the current neighbor's ID
-            // not already visited
-            if(!dbs.m_visited[npid]) { // if point hasn't been visited then
-              dbs.m_visited[npid] = true; // label point as visited
+            npid = ne[j].idx; // get the current neighbor's ID
+
+            dbs.m_visited[npid] = true; // label point as visited // TODO maybe get rid of this later
+
+            // not already assigned to a cluster
+            if (!dbs.m_pid_to_cid[npid]) {
+              c.push_back(npid); // add current neight ID to cluster vector
+              dbs.m_pid_to_cid[npid]=cid; // assign current neighbor pt to current cluster ID
+              dbs.m_noise[npid] = false; // mark the current neight pt as NOT a noise pt
+            
               // go to neighbors
               ne2.clear();
               dbs.m_kdtree->r_nearest_around_point(npid, 0, dbs.m_epsSquare, ne2); // gets neighbor points of current neighbor
@@ -392,15 +406,12 @@ namespace NWUClustering {
                   ne.push_back(ne2[k]); // adds element to the end of the vector
               }
             }
-            // not already assigned to a cluster
-            if (!dbs.m_pid_to_cid[npid]) {
-              c.push_back(npid); // add current neight ID to cluster vector
-              dbs.m_pid_to_cid[npid]=cid; // assign current neighbor pt to current cluster ID
-              dbs.m_noise[npid] = false; // mark the current neight pt as NOT a noise pt
-            }
           }
+
           dbs.m_clusters.push_back(c); // push cluster vector onto back of global cluster vector
           cid++; // increase cluster ID by 1
+        } else {
+          dbs.m_noise[pid] = true; // mark as noise point if neighborhood is too small
         }
       }
     }
