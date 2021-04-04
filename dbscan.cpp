@@ -113,7 +113,7 @@ namespace NWUClustering {
     int lower - the lower-bound index to read the points
     int upper - the upper-bound index to read the points
   */
-  void ClusteringAlgo::getGrowingPoints(vector<int>& growing_points, int sch, int tid, int lower, int upper) {
+  void ClusteringAlgo::getGrowingPoints_uf(vector<int>& growing_points, int sch, int tid, int lower, int upper) {
     int sid, blockage = sch * tid;
     kdtree2_result_vector ne;
     vector<int>* ind = m_kdtree->getIndex(); // Sets a vector that contains the index of all points
@@ -150,6 +150,55 @@ namespace NWUClustering {
         if(ne.size() >= m_minPts) {
           growing_points.push_back(sid); // adds the point to the growing points vector
           // m_member[sid] = 1; // marks the point as a member of a cluster
+        }
+        // no matter what, add `sid` to `alreadySeen` and clear out `ne` vector
+        alreadySeen.push_back(sid);
+        ne.clear();
+      }
+    }
+    alreadySeen.clear();
+  }
+
+    /*
+    Determines the initial seed points to be used in a pseudo-random fashion. If all of the points 
+    are to be used, the points are inspected linearally to speed up the execution time. 
+
+    vector<int>& growing_points - Vector that will hold the seed points for the data set.
+  */
+  void ClusteringAlgo::getGrowingPoints(vector<int>& growing_points) {
+    int sid, num_points = m_pts->m_i_num_points;
+    kdtree2_result_vector ne;
+    vector<int>* ind = m_kdtree->getIndex(); // Sets a vector that contains the index of all points
+    vector<int> alreadySeen;
+    bool allPoints = false;
+    srand(time(NULL));
+
+    if(m_seeds >= num_points) {
+      allPoints = true;
+    }
+    if(allPoints) {
+      // if all points are to be searched, no point in pseudo-randomly picking them
+      for(int h=0; h < num_points; h++) {
+        sid = (*ind)[h];
+        m_kdtree->r_nearest_around_point(sid, 0, m_epsSquare, ne);
+        if(ne.size() >= m_minPts) {
+          growing_points.push_back(sid); // adds the point to the growing points vector
+        }
+        ne.clear();
+      }
+    } else {
+
+      for(int h=0; h < m_seeds; h++) {
+        //this loop initializes first n growing points randomly
+        do {
+          sid = (*ind)[(rand() % num_points) + 1]; // generates random index in the range of the data set
+          // `sid` should NOT have already been seen.
+        } while (find(alreadySeen.begin(), alreadySeen.end(), sid) != alreadySeen.end());
+
+        // Check if the new point is a core point, and if so add it to `growing_points`
+        m_kdtree->r_nearest_around_point(sid, 0, m_epsSquare, ne);
+        if(ne.size() >= m_minPts) {
+          growing_points.push_back(sid); // adds the point to the growing points vector
         }
         // no matter what, add `sid` to `alreadySeen` and clear out `ne` vector
         alreadySeen.push_back(sid);
@@ -220,7 +269,7 @@ namespace NWUClustering {
       //#pragma omp parallel for
       #pragma omp barrier
 
-      dbs.getGrowingPoints(growing_points, sch, tid, lower, upper); // Each thread gets its seed points  TODO line 7 of pseudocode
+      dbs.getGrowingPoints_uf(growing_points, sch, tid, lower, upper); // Each thread gets its seed points  TODO line 7 of pseudocode
       
       //cout << "made it to the barrier" << endl; 
       #pragma omp barrier // all threads will stop here until every thread has reached this point
@@ -349,6 +398,8 @@ namespace NWUClustering {
     int cid = 1; // cluster id
     int num_points = dbs.m_pts->m_i_num_points;
     vector <int> c;
+    vector <int> growing_points;
+    vector<int>* ind = dbs.m_kdtree->getIndex(); // get index of data set
     c.reserve(num_points);
     // initialize some parameters
     dbs.m_noise.resize(num_points, false);
@@ -361,11 +412,12 @@ namespace NWUClustering {
     //kdtree2_result_vector ne3;
     ne.reserve(num_points);
     ne2.reserve(num_points);
-    vector<int>* ind = dbs.m_kdtree->getIndex(); // get index of data set
 
     // TODO initialize parent pointers: self-pointing
 
     // TODO get seed points
+    dbs.getGrowingPoints(growing_points);
+    cout << "Seed points: " << growing_points.size() << endl;
 
     // TODO this will be modified after seed points are obtained
     double start = omp_get_wtime() ;  
