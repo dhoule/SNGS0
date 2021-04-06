@@ -159,7 +159,7 @@ namespace NWUClustering {
     alreadySeen.clear();
   }
 
-    /*
+  /*
     Determines the initial seed points to be used in a pseudo-random fashion. If all of the points 
     are to be used, the points are inspected linearally to speed up the execution time. 
 
@@ -421,8 +421,10 @@ namespace NWUClustering {
 
     // TODO this will be modified after seed points are obtained
     double start = omp_get_wtime() ;  
-    for(i = 0; i < num_points; i++) { // start to go over data set
-      pid = (*ind)[i]; // get the current data pts ID
+    // for(i = 0; i < num_points; i++) { // start to go over data set
+    for(i = 0; i < growing_points.size(); i++) { // start to go over data set
+      // pid = (*ind)[i]; // get the current data pts ID
+      pid = growing_points[i]; // get the current data pts ID
       // not already assigned to a cluster
       if (!dbs.m_pid_to_cid[pid]) { 
         // TODO mark as clustered after seed points are obtained
